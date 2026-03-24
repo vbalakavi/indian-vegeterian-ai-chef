@@ -59,6 +59,7 @@ RECIPE_IMAGE_MODEL = "gpt-image-1"
 VOICE_LANGUAGES = {
     "English": {"transcribe": "en", "reply_name": "English"},
     "Hindi": {"transcribe": "hi", "reply_name": "Hindi"},
+    "Malayalam": {"transcribe": "ml", "reply_name": "Malayalam"},
     "Marathi": {"transcribe": "mr", "reply_name": "Marathi"},
     "Tamil": {"transcribe": "ta", "reply_name": "Tamil"},
     "Telugu": {"transcribe": "te", "reply_name": "Telugu"},
@@ -69,6 +70,7 @@ VOICE_TTS_INSTRUCTIONS = (
     "Sound lively, friendly, and a little theatrical when describing recipes, "
     "while staying clear and natural."
 )
+VOICE_QUERY_GUIDANCE_MESSAGE = "Question nor understood, ask about any Indian vegeterian recipies"
 
 
 def normalize_query_param(value):
@@ -164,6 +166,17 @@ def get_voice_language_settings():
     return VOICE_LANGUAGES.get(selected_language, VOICE_LANGUAGES["English"])
 
 
+def get_voice_transcription_prompt():
+    selected_language = st.session_state.get("voice_language", "English")
+    return (
+        f"The speaker is speaking {selected_language}. "
+        f"Transcribe strictly in {selected_language}. "
+        f"Do not switch to another Indian language or script. "
+        f"Do not transliterate into a different script. "
+        f"If the speech mentions Indian vegetarian dishes, preserve those words naturally in {selected_language}."
+    )
+
+
 def get_conversation_context(history_key, max_turns=4):
     history = st.session_state.get(history_key, []) or []
     if not history:
@@ -217,6 +230,9 @@ def build_agent_query(query, source="chat", history_key="chat_history"):
     return (
         f"{context_prefix}"
         f"Answer in {reply_language}. "
+        "Give the same level of detail and clarity as a strong English recipe answer. "
+        "Include ingredients, quantities when possible, practical cooking steps, and helpful tips or substitutions when relevant. "
+        "Do not make the answer shorter just because it is in another language. "
         "Keep ingredient names and steps natural for that language. "
         f"User question: {cleaned_query}"
     )
@@ -372,6 +388,8 @@ def transcribe_voice_clip(audio_clip):
         model=VOICE_TRANSCRIBE_MODEL,
         response_format="text",
         language=language_settings["transcribe"],
+        prompt=get_voice_transcription_prompt(),
+        temperature=0,
     )
     return str(transcript).strip(), None
 
@@ -805,6 +823,7 @@ st.markdown(
     font-size: 0.93rem;
     line-height: 1.45;
     margin-bottom: 0.75rem;
+    font-weight: 700;
 }
 
 .prompt-label {
@@ -821,6 +840,14 @@ st.markdown(
     font-size: 0.9rem;
     font-weight: 800;
     margin-bottom: 0.45rem;
+}
+
+.voice-help-text {
+    color: #6a4620 !important;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.35;
+    margin: 0.15rem 0 0.4rem 0;
 }
 
 div[data-testid="stTextInput"] input {
@@ -844,7 +871,7 @@ div[data-testid="stButton"] > button {
     border: 1px solid #cb8740;
     background: linear-gradient(180deg, #df9b50 0%, #c9701e 100%);
     color: #ffffff;
-    font-weight: 700;
+    font-weight: 800;
 }
 
 div[data-testid="stButton"] > button:hover {
@@ -981,6 +1008,25 @@ div[data-testid="stAudioInput"] audio {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
+    background: linear-gradient(180deg, #fff3df 0%, #f0b35a 100%) !important;
+    border: 2px solid #9a4d12 !important;
+    color: #7a3510 !important;
+    box-shadow: 0 6px 16px rgba(154, 77, 18, 0.2) !important;
+}
+
+.voice-top-record div[data-testid="stAudioInput"] button:hover,
+.voice-top-record div[data-testid="stAudioInput"] [data-testid="stBaseButton-secondary"]:hover,
+.voice-top-record div[data-testid="stAudioInput"] [data-baseweb="button"]:hover,
+.voice-top-record div[data-testid="stAudioInput"] [role="button"]:hover {
+    background: linear-gradient(180deg, #ffe8c4 0%, #e69a34 100%) !important;
+    border-color: #7a3510 !important;
+}
+
+.voice-top-record div[data-testid="stAudioInput"] svg,
+.voice-top-record div[data-testid="stAudioInput"] button span,
+.voice-top-record div[data-testid="stAudioInput"] [role="button"] span {
+    color: #7a3510 !important;
+    fill: #7a3510 !important;
 }
 
 .voice-top-record div[data-testid="stAudioInput"] > div {
@@ -996,6 +1042,15 @@ div[data-testid="stAudioInput"] audio {
     max-width: 3.35rem !important;
     border-radius: 999px !important;
     box-sizing: border-box !important;
+}
+
+.voice-mini-actions div[data-testid="stButton"] > button {
+    min-height: 2rem;
+    height: 2rem;
+    padding: 0.15rem 0.35rem;
+    font-size: 0.78rem;
+    border-radius: 10px;
+    font-weight: 800;
 }
 
 .auth-watermark {
@@ -1047,6 +1102,10 @@ div[data-testid="stCaptionContainer"] {
 [data-testid="stCaptionContainer"],
 [data-testid="stText"] {
     color: #2f2418;
+}
+
+[data-testid="stCaptionContainer"] {
+    font-weight: 700;
 }
 </style>
 """,
@@ -1192,16 +1251,23 @@ def render_voice_controls(show_answers=False):
     audio_input_key = f"voice_audio_capture_{voice_widget_reset}"
     st.button("New Chat", use_container_width=True, on_click=clear_chat)
     st.markdown("")
+    st.markdown("**Voice Language**")
     st.selectbox(
         "Voice Language",
         list(VOICE_LANGUAGES.keys()),
         key="voice_language",
         help="Choose the language for voice transcription and spoken replies.",
+        label_visibility="collapsed",
+    )
+    st.markdown(
+        '<div class="voice-help-text">Click speaker to record your question.and push the red button to complete</div>',
+        unsafe_allow_html=True,
     )
     voice_clip = st.audio_input(
         "Record your recipe question",
         key=audio_input_key,
         help="Use the built-in recorder to start and stop your voice question.",
+        label_visibility="collapsed",
     )
     st.markdown(
         f'<div class="voice-status-pill"><span class="voice-dot"></span><span>{st.session_state.get("voice_status_message", "Ready to record a recipe question.")}</span></div>',
@@ -1217,8 +1283,8 @@ def render_voice_controls(show_answers=False):
                 if transcription_error:
                     st.session_state["voice_last_question"] = ""
                     st.session_state["voice_last_answer"] = ""
-                    st.session_state["voice_last_error"] = transcription_error
-                    st.session_state["voice_status_message"] = "Recording could not be transcribed. Please try again."
+                    st.session_state["voice_last_error"] = VOICE_QUERY_GUIDANCE_MESSAGE
+                    st.session_state["voice_status_message"] = VOICE_QUERY_GUIDANCE_MESSAGE
                 elif transcript:
                     st.session_state["voice_input_value"] = transcript
                     st.session_state["voice_status_message"] = "Generating AI Chef reply..."
@@ -1230,7 +1296,7 @@ def render_voice_controls(show_answers=False):
                     )
                     if error_message:
                         st.session_state["voice_last_error"] = error_message
-                        st.session_state["voice_status_message"] = "I heard you, but I hit an error generating the reply."
+                        st.session_state["voice_status_message"] = "Question not understood, ask about any Indian vegeterian recipies"
                     elif st.session_state.get("voice_latest_answer"):
                         st.session_state["speak_text_once"] = st.session_state["voice_latest_answer"]
                         st.session_state["voice_last_error"] = ""
@@ -1239,13 +1305,13 @@ def render_voice_controls(show_answers=False):
                 else:
                     st.session_state["voice_last_question"] = ""
                     st.session_state["voice_last_answer"] = ""
-                    st.session_state["voice_last_error"] = "I could not transcribe that recording. Please try again."
-                    st.session_state["voice_status_message"] = "No transcript was captured from that recording."
+                    st.session_state["voice_last_error"] = VOICE_QUERY_GUIDANCE_MESSAGE
+                    st.session_state["voice_status_message"] = VOICE_QUERY_GUIDANCE_MESSAGE
             except Exception as exc:
                 st.session_state["voice_last_question"] = ""
                 st.session_state["voice_last_answer"] = ""
-                st.session_state["voice_last_error"] = f"Voice transcription failed: {exc}"
-                st.session_state["voice_status_message"] = "Voice transcription failed."
+                st.session_state["voice_last_error"] = VOICE_QUERY_GUIDANCE_MESSAGE
+                st.session_state["voice_status_message"] = VOICE_QUERY_GUIDANCE_MESSAGE
 
     query = st.session_state.get("pending_prompt", "").strip()
 
@@ -1279,6 +1345,22 @@ def render_voice_controls(show_answers=False):
     voice_latest_question = st.session_state.get("voice_last_question", "")
     voice_latest_answer = st.session_state.get("voice_last_answer", "")
     voice_last_error = st.session_state.get("voice_last_error", "")
+    st.markdown('<div class="voice-mini-actions">', unsafe_allow_html=True)
+    replay_col, stop_col, clear_col = st.columns(3, gap="small")
+    with replay_col:
+        if st.button("Replay", key="start_voice_reply", use_container_width=True, disabled=not voice_latest_answer):
+            st.session_state["speak_text_once"] = voice_latest_answer
+            st.session_state["voice_status_message"] = "Replaying the latest spoken reply."
+    with stop_col:
+        if st.button("Stop", key="stop_voice_reply_top", use_container_width=True):
+            stop_speaking()
+            st.session_state["voice_status_message"] = "Voice playback stopped."
+    with clear_col:
+        if st.button("Clear", key="clear_voice_reply_top", use_container_width=True):
+            stop_speaking()
+            clear_chat()
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_voice_avatar():
@@ -1316,20 +1398,6 @@ def render_voice_answer_panel():
                 unsafe_allow_html=True,
             )
         st.write(voice_latest_answer)
-        replay_col, stop_col, clear_col = st.columns(3, gap="small")
-        with replay_col:
-            if st.button("Replay Voice Reply", key="replay_voice_reply", use_container_width=True):
-                st.session_state["speak_text_once"] = voice_latest_answer
-                st.session_state["voice_status_message"] = "Replaying the latest spoken reply."
-        with stop_col:
-            if st.button("Stop Voice", key="stop_voice_reply", use_container_width=True):
-                stop_speaking()
-                st.session_state["voice_status_message"] = "Voice playback stopped."
-        with clear_col:
-            if st.button("Clear", key="clear_voice_reply", use_container_width=True):
-                stop_speaking()
-                clear_chat()
-                st.rerun()
     elif voice_latest_question:
         st.info("I heard your question, but I do not have a response yet.")
     else:
