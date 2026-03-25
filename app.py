@@ -1055,7 +1055,16 @@ div[data-testid="stButton"] > button {
     border: 1px solid #cb8740;
     background: linear-gradient(180deg, #df9b50 0%, #c9701e 100%);
     color: #ffffff;
-    font-weight: 800;
+    font-weight: 800 !important;
+}
+
+div[data-testid="stButton"] > button,
+div[data-testid="stButton"] > button *,
+div[data-testid="stAudioInput"] button,
+div[data-testid="stAudioInput"] button *,
+div[data-testid="stAudioInput"] [role="button"],
+div[data-testid="stAudioInput"] [role="button"] * {
+    font-weight: 800 !important;
 }
 
 div[data-testid="stButton"] > button:hover {
@@ -1433,7 +1442,7 @@ def render_voice_controls(show_answers=False):
     )
     voice_widget_reset = st.session_state.get("voice_widget_reset", 0)
     audio_input_key = f"voice_audio_capture_{voice_widget_reset}"
-    st.button("New Chat", use_container_width=True, on_click=clear_chat)
+    st.button("New Recipie", use_container_width=True, on_click=clear_chat)
     st.markdown("")
     st.markdown("**Voice Language**")
     st.selectbox(
@@ -1635,7 +1644,7 @@ if mode == "Text Assistant":
             show_recipe_of_the_day()
 
     with right_col:
-        st.button("New Chat", use_container_width=True, on_click=clear_chat)
+        st.button("New Recipie", use_container_width=True, on_click=clear_chat)
         st.markdown("")
         st.markdown('<div class="section-heading">Interactive Agent</div>', unsafe_allow_html=True)
         pending_prompt = st.session_state.get("pending_prompt", "").strip()
@@ -1785,8 +1794,8 @@ These follow-ups are applied to the same recipe instead of starting over.
         st.markdown('<div class="section-heading">Reset Options</div>', unsafe_allow_html=True)
         st.markdown(
             """
-- `New Chat` starts a fresh session and clears the current history.
-- `Clear` in voice mode works like `New Chat`.
+- `New Recipie` starts a fresh session and clears the current history.
+- `Clear` in voice mode works like `New Recipie`.
 - Start a new session whenever you want to switch to a completely different recipe.
 """.strip()
         )
