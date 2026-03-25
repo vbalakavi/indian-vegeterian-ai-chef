@@ -497,7 +497,11 @@ def transcribe_voice_clip(audio_clip):
     if not audio_bytes:
         return "", "The recorded clip was empty. Please try again."
 
-    audio_buffer = build_transcription_audio_buffer(audio_clip, audio_bytes)
+    audio_buffer = build_transcription_audio_buffer(
+        audio_bytes,
+        getattr(audio_clip, "name", ""),
+        getattr(audio_clip, "type", ""),
+    )
     if audio_buffer is None:
         return "", "This phone recording format is not supported yet. Please try again or upload an mp3, m4a, wav, or webm file."
 
@@ -513,9 +517,9 @@ def transcribe_voice_clip(audio_clip):
     return str(transcript).strip(), None
 
 
-def build_transcription_audio_buffer(audio_clip, audio_bytes):
-    clip_name = getattr(audio_clip, "name", "") or ""
-    clip_type = (getattr(audio_clip, "type", "") or "").lower()
+def build_transcription_audio_buffer(audio_bytes, clip_name="", clip_type=""):
+    clip_name = clip_name or ""
+    clip_type = (clip_type or "").lower()
     clip_suffix = Path(clip_name).suffix.lower()
 
     if clip_suffix not in SUPPORTED_VOICE_FILE_EXTENSIONS:
@@ -718,14 +722,36 @@ st.markdown(
 }
 
 .hero-avatar.speaking {
-    animation: chefPulse 0.8s ease-in-out infinite;
-    box-shadow: 0 0 0 8px rgba(201, 112, 30, 0.18), 0 14px 28px rgba(15, 30, 28, 0.22);
+    box-shadow: 0 0 0 4px rgba(201, 112, 30, 0.12), 0 14px 28px rgba(15, 30, 28, 0.22);
+}
+
+.hero-avatar.loading {
+    animation: chefFlash 0.95s ease-in-out infinite;
+    box-shadow: 0 0 0 10px rgba(255, 181, 64, 0.3), 0 16px 32px rgba(15, 30, 28, 0.24);
 }
 
 @keyframes chefPulse {
     0% { transform: scale(1); }
     50% { transform: scale(1.05); }
     100% { transform: scale(1); }
+}
+
+@keyframes chefFlash {
+    0% {
+        transform: scale(1);
+        filter: brightness(1) saturate(1);
+        box-shadow: 0 0 0 0 rgba(255, 181, 64, 0.48), 0 14px 28px rgba(15, 30, 28, 0.22);
+    }
+    50% {
+        transform: scale(1.09);
+        filter: brightness(1.3) saturate(1.18);
+        box-shadow: 0 0 0 15px rgba(255, 196, 92, 0.18), 0 20px 38px rgba(15, 30, 28, 0.28);
+    }
+    100% {
+        transform: scale(1);
+        filter: brightness(1) saturate(1);
+        box-shadow: 0 0 0 0 rgba(255, 181, 64, 0.48), 0 14px 28px rgba(15, 30, 28, 0.22);
+    }
 }
 
 .chef-hat {
@@ -1367,6 +1393,12 @@ if "app_initialized" not in st.session_state:
     st.session_state["voice_language"] = "English"
     st.session_state["last_spoken_signature"] = ""
     st.session_state["pending_stop_voice"] = False
+    st.session_state["voice_processing_stage"] = "idle"
+    st.session_state["pending_voice_clip_hash"] = ""
+    st.session_state["pending_voice_clip_bytes"] = b""
+    st.session_state["pending_voice_clip_name"] = ""
+    st.session_state["pending_voice_clip_type"] = ""
+    st.session_state["pending_voice_query"] = ""
     st.session_state["experience_mode"] = "Text Assistant"
 
 mode_param = normalize_query_param(st.query_params.get("mode"))
@@ -1468,74 +1500,26 @@ def render_voice_controls(show_answers=False):
     )
     if voice_clip is not None:
         clip_hash = hashlib.sha1(voice_clip.getvalue()).hexdigest()
-        if clip_hash != st.session_state.get("last_voice_audio_hash", ""):
-            try:
-                st.session_state["voice_status_message"] = "Transcribing your recording..."
-                transcript, transcription_error = transcribe_voice_clip(voice_clip)
-                st.session_state["last_voice_audio_hash"] = clip_hash
-                if transcription_error:
-                    st.session_state["voice_last_question"] = ""
-                    st.session_state["voice_last_answer"] = ""
-                    st.session_state["voice_last_error"] = transcription_error
-                    st.session_state["voice_status_message"] = transcription_error
-                elif transcript:
-                    st.session_state["voice_input_value"] = transcript
-                    st.session_state["voice_status_message"] = "Generating AI Chef reply..."
-                    _, error_message = run_agent_query(
-                        transcript,
-                        add_to_chat=True,
-                        history_key="voice_history",
-                        source="voice",
-                    )
-                    if error_message:
-                        st.session_state["voice_last_error"] = error_message
-                        st.session_state["voice_status_message"] = "Question not understood, ask about any Indian vegeterian recipies"
-                    elif st.session_state.get("voice_latest_answer"):
-                        st.session_state["speak_text_once"] = st.session_state["voice_latest_answer"]
-                        prepare_speech_audio(st.session_state["voice_latest_answer"])
-                        st.session_state["voice_last_error"] = ""
-                        st.session_state["voice_status_message"] = ""
-                    st.rerun()
-                else:
-                    st.session_state["voice_last_question"] = ""
-                    st.session_state["voice_last_answer"] = ""
-                    st.session_state["voice_last_error"] = VOICE_QUERY_GUIDANCE_MESSAGE
-                    st.session_state["voice_status_message"] = VOICE_QUERY_GUIDANCE_MESSAGE
-            except Exception as exc:
-                st.session_state["voice_last_question"] = ""
-                st.session_state["voice_last_answer"] = ""
-                st.session_state["voice_last_error"] = f"Voice recording could not be processed: {exc}"
-                st.session_state["voice_status_message"] = "Voice recording could not be processed."
-
-    query = st.session_state.get("pending_prompt", "").strip()
-
-    if query:
-        try:
-            st.session_state["voice_status_message"] = "Generating AI Chef reply..."
-            _, error_message = run_agent_query(
-                query,
-                add_to_chat=True,
-                history_key="voice_history",
-                source="voice",
-            )
-            if error_message:
-                st.session_state["voice_last_error"] = error_message
-                st.session_state["voice_status_message"] = "I received your request, but could not answer it."
-                st.warning(error_message)
-            else:
-                st.session_state["voice_status_message"] = "Reply ready."
-        except Exception as exc:
-            st.session_state["voice_last_question"] = query
-            st.session_state["voice_last_answer"] = ""
-            st.session_state["voice_last_error"] = f"Could not generate a response: {exc}"
-            st.session_state["voice_status_message"] = "I hit an error while answering your request."
-            st.error(f"Could not generate a response: {exc}")
+        current_stage = st.session_state.get("voice_processing_stage", "idle")
+        pending_hash = st.session_state.get("pending_voice_clip_hash", "")
+        if (
+            clip_hash != st.session_state.get("last_voice_audio_hash", "")
+            and current_stage == "idle"
+            and clip_hash != pending_hash
+        ):
+            st.session_state["pending_voice_clip_hash"] = clip_hash
+            st.session_state["pending_voice_clip_bytes"] = voice_clip.getvalue()
+            st.session_state["pending_voice_clip_name"] = getattr(voice_clip, "name", "") or ""
+            st.session_state["pending_voice_clip_type"] = getattr(voice_clip, "type", "") or ""
+            st.session_state["pending_voice_query"] = ""
+            st.session_state["voice_processing_stage"] = "transcribing"
+            st.session_state["voice_status_message"] = "Transcribing your recording..."
+            st.rerun()
 
     if pending_prompt_error:
         st.session_state["voice_last_error"] = pending_prompt_error
         st.session_state["voice_status_message"] = "I hit an error while finishing the voice request."
         st.error(pending_prompt_error)
-
     voice_latest_question = st.session_state.get("voice_last_question", "")
     voice_latest_answer = st.session_state.get("voice_last_answer", "")
     voice_last_error = st.session_state.get("voice_last_error", "")
@@ -1557,12 +1541,128 @@ def render_voice_controls(show_answers=False):
     st.markdown('</div>', unsafe_allow_html=True)
 
 
+def process_voice_pipeline():
+    stage = st.session_state.get("voice_processing_stage", "idle")
+
+    if stage == "transcribing":
+        audio_bytes = st.session_state.get("pending_voice_clip_bytes", b"")
+        if not audio_bytes:
+            st.session_state["voice_processing_stage"] = "idle"
+            return
+
+        try:
+            transcript = ""
+            transcription_error = None
+            audio_buffer = build_transcription_audio_buffer(
+                audio_bytes,
+                st.session_state.get("pending_voice_clip_name", ""),
+                st.session_state.get("pending_voice_clip_type", ""),
+            )
+            if audio_buffer is None:
+                transcription_error = "This phone recording format is not supported yet. Please try again."
+            else:
+                language_settings = get_voice_language_settings()
+                transcript = str(
+                    st.session_state.openai_client.audio.transcriptions.create(
+                        file=audio_buffer,
+                        model=VOICE_TRANSCRIBE_MODEL,
+                        response_format="text",
+                        language=language_settings["transcribe"],
+                        prompt=get_voice_transcription_prompt(),
+                        temperature=0,
+                    )
+                ).strip()
+
+            st.session_state["last_voice_audio_hash"] = st.session_state.get("pending_voice_clip_hash", "")
+            if transcription_error:
+                st.session_state["voice_last_question"] = ""
+                st.session_state["voice_last_answer"] = ""
+                st.session_state["voice_last_error"] = transcription_error
+                st.session_state["voice_status_message"] = transcription_error
+                st.session_state["voice_processing_stage"] = "idle"
+                st.session_state["pending_voice_clip_bytes"] = b""
+                st.session_state["pending_voice_clip_name"] = ""
+                st.session_state["pending_voice_clip_type"] = ""
+                st.session_state["pending_voice_clip_hash"] = ""
+            elif transcript:
+                st.session_state["voice_input_value"] = transcript
+                st.session_state["pending_voice_query"] = transcript
+                st.session_state["voice_status_message"] = "Generating AI Chef reply..."
+                st.session_state["voice_processing_stage"] = "generating"
+                st.rerun()
+            else:
+                st.session_state["voice_last_question"] = ""
+                st.session_state["voice_last_answer"] = ""
+                st.session_state["voice_last_error"] = VOICE_QUERY_GUIDANCE_MESSAGE
+                st.session_state["voice_status_message"] = VOICE_QUERY_GUIDANCE_MESSAGE
+                st.session_state["voice_processing_stage"] = "idle"
+                st.session_state["pending_voice_clip_bytes"] = b""
+                st.session_state["pending_voice_clip_name"] = ""
+                st.session_state["pending_voice_clip_type"] = ""
+                st.session_state["pending_voice_clip_hash"] = ""
+        except Exception as exc:
+            st.session_state["voice_last_question"] = ""
+            st.session_state["voice_last_answer"] = ""
+            st.session_state["voice_last_error"] = f"Voice recording could not be processed: {exc}"
+            st.session_state["voice_status_message"] = "Voice recording could not be processed."
+            st.session_state["voice_processing_stage"] = "idle"
+            st.session_state["pending_voice_clip_bytes"] = b""
+            st.session_state["pending_voice_clip_name"] = ""
+            st.session_state["pending_voice_clip_type"] = ""
+            st.session_state["pending_voice_clip_hash"] = ""
+
+    elif stage == "generating":
+        query = st.session_state.get("pending_voice_query", "").strip()
+        if not query:
+            st.session_state["voice_processing_stage"] = "idle"
+            return
+
+        try:
+            _, error_message = run_agent_query(
+                query,
+                add_to_chat=True,
+                history_key="voice_history",
+                source="voice",
+            )
+            if error_message:
+                st.session_state["voice_last_error"] = error_message
+                st.session_state["voice_status_message"] = "Question not understood, ask about any Indian vegeterian recipies"
+            elif st.session_state.get("voice_latest_answer"):
+                st.session_state["speak_text_once"] = st.session_state["voice_latest_answer"]
+                prepare_speech_audio(st.session_state["voice_latest_answer"])
+                st.session_state["voice_last_error"] = ""
+                st.session_state["voice_status_message"] = ""
+            st.session_state["voice_processing_stage"] = "idle"
+            st.session_state["pending_voice_query"] = ""
+            st.session_state["pending_voice_clip_bytes"] = b""
+            st.session_state["pending_voice_clip_name"] = ""
+            st.session_state["pending_voice_clip_type"] = ""
+            st.session_state["pending_voice_clip_hash"] = ""
+            st.rerun()
+        except Exception as exc:
+            st.session_state["voice_last_question"] = query
+            st.session_state["voice_last_answer"] = ""
+            st.session_state["voice_last_error"] = f"Could not generate a response: {exc}"
+            st.session_state["voice_status_message"] = "I hit an error while answering your request."
+            st.session_state["voice_processing_stage"] = "idle"
+            st.session_state["pending_voice_clip_bytes"] = b""
+            st.session_state["pending_voice_clip_name"] = ""
+            st.session_state["pending_voice_clip_type"] = ""
+            st.session_state["pending_voice_clip_hash"] = ""
+            st.rerun()
+
+
 def render_voice_avatar():
+    stage = st.session_state.get("voice_processing_stage", "idle")
+    avatar_classes = ["hero-avatar"]
+    if stage in {"transcribing", "generating"}:
+        avatar_classes.append("loading")
+
     st.markdown(
-        """
+        f"""
 <div class="voice-top-avatar-wrap">
     <div class="agent-avatar-card voice-avatar-card">
-        <div class="hero-avatar" id="chef-avatar-voice">
+        <div class="{' '.join(avatar_classes)}" id="chef-avatar-voice">
             <div class="chef-hat"></div>
             <div class="chef-face">
                 <div class="chef-eye left"></div>
@@ -1712,10 +1812,12 @@ if mode == "Text Assistant":
 
 elif mode == "Voice Control":
     voice_left_col, voice_center_col, voice_right_col = st.columns([0.72, 1.7, 0.78], gap="medium")
+    with voice_center_col:
+        render_voice_avatar()
     with voice_left_col:
         render_voice_controls(show_answers=True)
     with voice_center_col:
-        render_voice_avatar()
+        process_voice_pipeline()
         render_voice_answer_panel()
         process_pending_voice_stop()
         play_pending_speech()
