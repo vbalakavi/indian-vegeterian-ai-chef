@@ -2,6 +2,9 @@ import base64
 import json
 import hashlib
 import io
+import random
+import re
+from pathlib import Path
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -56,6 +59,14 @@ VOICE_TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
 VOICE_TTS_MODEL = "gpt-4o-mini-tts"
 VOICE_TTS_VOICE = "sage"
 RECIPE_IMAGE_MODEL = "gpt-image-1"
+BASE_DIR = Path(__file__).resolve().parent
+RECIPE_IMAGE_CACHE_DIR = BASE_DIR / "recipe_image_cache"
+SUPPORTED_VOICE_FILE_EXTENSIONS = {".wav", ".mp3", ".mp4", ".m4a", ".mpeg", ".mpga", ".webm", ".ogg"}
+RECIPE_DATA_PATH_CANDIDATES = [
+    BASE_DIR / "data" / "recipes.json",
+    BASE_DIR / "recipes.json",
+    BASE_DIR / "recipies.json",
+]
 VOICE_LANGUAGES = {
     "English": {"transcribe": "en", "reply_name": "English"},
     "Hindi": {"transcribe": "hi", "reply_name": "Hindi"},
@@ -79,6 +90,37 @@ def normalize_query_param(value):
     if isinstance(value, list):
         return str(value[0]).strip() if value else ""
     return str(value).strip()
+
+
+def normalize_recipe_cache_query(question):
+    normalized = (question or "").strip().lower()
+    if not normalized:
+        return ""
+
+    normalized = re.sub(r"[^\w\s]", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+
+    filler_patterns = [
+        r"^(please\s+)?(give|show|tell)\s+me\s+",
+        r"^(please\s+)?(how\s+do\s+i\s+make|how\s+to\s+make|how\s+to\s+cook)\s+",
+        r"^(please\s+)?(what\s+is|what s)\s+the\s+recipe\s+for\s+",
+        r"^(please\s+)?recipe\s+for\s+",
+        r"^(please\s+)?can\s+you\s+(give|show|tell)\s+me\s+",
+        r"^(please\s+)?i\s+want\s+",
+    ]
+    for pattern in filler_patterns:
+        normalized = re.sub(pattern, "", normalized).strip()
+
+    trailing_patterns = [
+        r"\s+recipe$",
+        r"\s+recipe\s+please$",
+        r"\s+at\s+home$",
+        r"\s+please$",
+    ]
+    for pattern in trailing_patterns:
+        normalized = re.sub(pattern, "", normalized).strip()
+
+    return normalized
 
 
 def attempt_login():
@@ -114,14 +156,74 @@ def clear_latest_response(source=None):
         st.session_state[f"{prefix}_latest_question"] = ""
         st.session_state[f"{prefix}_latest_answer"] = ""
         st.session_state[f"{prefix}_latest_recipe_image_key"] = ""
+        st.session_state[f"{prefix}_latest_recipe_image_path"] = ""
         st.session_state[f"{prefix}_latest_recipe_image_b64"] = ""
         st.session_state[f"{prefix}_latest_recipe_image_error"] = ""
+        st.session_state[f"{prefix}_latest_recipe_image_source"] = ""
 
 
 def show_recipe_of_the_day():
     clear_latest_response(source="chat")
     st.session_state["text_latest_question"] = RECIPE_OF_THE_DAY_QUESTION
-    st.session_state["text_latest_answer"] = RECIPE_OF_THE_DAY_ANSWER
+    st.session_state["text_latest_answer"] = get_random_recipe_of_the_day_answer()
+
+
+def get_recipe_data_path():
+    for candidate in RECIPE_DATA_PATH_CANDIDATES:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def load_recipe_of_the_day_options():
+    data_path = get_recipe_data_path()
+    if data_path is None:
+        return []
+
+    try:
+        with data_path.open(encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    return [recipe for recipe in data if isinstance(recipe, dict) and recipe.get("name")]
+
+
+def format_recipe_of_the_day_answer(recipe):
+    name = recipe.get("name", "Chef's Special")
+    ingredients = recipe.get("ingredients") or []
+    steps = recipe.get("steps") or []
+    diet = recipe.get("diet")
+    region = recipe.get("region")
+
+    lines = [f"Today's recipe is {name}."]
+    if diet or region:
+        details = " | ".join(part for part in [diet, region] if part)
+        lines.extend(["", f"Style: {details}"])
+    if ingredients:
+        lines.extend(["", "Ingredients:"])
+        lines.extend(f"- {ingredient}" for ingredient in ingredients)
+    if steps:
+        lines.extend(["", "Steps:"])
+        lines.extend(f"{index}. {step}" for index, step in enumerate(steps, start=1))
+    return "\n".join(lines).strip()
+
+
+def get_random_recipe_of_the_day_answer():
+    recipes = load_recipe_of_the_day_options()
+    if not recipes:
+        return RECIPE_OF_THE_DAY_ANSWER
+
+    previous_recipe_name = st.session_state.get("last_recipe_of_the_day_name", "")
+    available_recipes = recipes
+    if previous_recipe_name and len(recipes) > 1:
+        available_recipes = [
+            recipe for recipe in recipes if recipe.get("name") != previous_recipe_name
+        ] or recipes
+
+    selected_recipe = random.choice(available_recipes)
+    st.session_state["last_recipe_of_the_day_name"] = selected_recipe.get("name", "")
+    return format_recipe_of_the_day_answer(selected_recipe)
 
 
 def queue_text_query(query, add_to_chat):
@@ -295,27 +397,42 @@ def speak_text(text):
     if not clipped_text:
         return
 
+    audio_b64 = prepare_speech_audio(clipped_text)
+    if not audio_b64:
+        return
+
+    play_speech_audio(audio_b64)
+
+
+def prepare_speech_audio(text):
+    clipped_text = (text or "").strip()
+    if not clipped_text:
+        return ""
+
     selected_language = st.session_state.get("voice_language", "English")
     cached_signature = st.session_state.get("last_spoken_signature", "")
     cached_audio_b64 = st.session_state.get("last_spoken_audio_b64", "")
     current_signature = f"{selected_language}:{clipped_text}"
     if current_signature == cached_signature and cached_audio_b64:
-        audio_b64 = cached_audio_b64
-    else:
-        response = st.session_state.openai_client.audio.speech.create(
-            input=clipped_text[:2000],
-            model=VOICE_TTS_MODEL,
-            voice=VOICE_TTS_VOICE,
-            instructions=f"{VOICE_TTS_INSTRUCTIONS} Speak the response in {selected_language}.",
-            response_format="mp3",
-            speed=1.0,
-        )
-        audio_bytes = response.read()
-        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
-        st.session_state["last_spoken_text"] = clipped_text
-        st.session_state["last_spoken_audio_b64"] = audio_b64
-        st.session_state["last_spoken_signature"] = current_signature
+        return cached_audio_b64
 
+    response = st.session_state.openai_client.audio.speech.create(
+        input=clipped_text[:2000],
+        model=VOICE_TTS_MODEL,
+        voice=VOICE_TTS_VOICE,
+        instructions=f"{VOICE_TTS_INSTRUCTIONS} Speak the response in {selected_language}.",
+        response_format="mp3",
+        speed=1.0,
+    )
+    audio_bytes = response.read()
+    audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+    st.session_state["last_spoken_text"] = clipped_text
+    st.session_state["last_spoken_audio_b64"] = audio_b64
+    st.session_state["last_spoken_signature"] = current_signature
+    return audio_b64
+
+
+def play_speech_audio(audio_b64):
     payload = json.dumps(audio_b64)
     components.html(
         f"""
@@ -380,8 +497,10 @@ def transcribe_voice_clip(audio_clip):
     if not audio_bytes:
         return "", "The recorded clip was empty. Please try again."
 
-    audio_buffer = io.BytesIO(audio_bytes)
-    audio_buffer.name = getattr(audio_clip, "name", None) or "voice_question.wav"
+    audio_buffer = build_transcription_audio_buffer(audio_clip, audio_bytes)
+    if audio_buffer is None:
+        return "", "This phone recording format is not supported yet. Please try again or upload an mp3, m4a, wav, or webm file."
+
     language_settings = get_voice_language_settings()
     transcript = st.session_state.openai_client.audio.transcriptions.create(
         file=audio_buffer,
@@ -392,6 +511,33 @@ def transcribe_voice_clip(audio_clip):
         temperature=0,
     )
     return str(transcript).strip(), None
+
+
+def build_transcription_audio_buffer(audio_clip, audio_bytes):
+    clip_name = getattr(audio_clip, "name", "") or ""
+    clip_type = (getattr(audio_clip, "type", "") or "").lower()
+    clip_suffix = Path(clip_name).suffix.lower()
+
+    if clip_suffix not in SUPPORTED_VOICE_FILE_EXTENSIONS:
+        mime_to_suffix = {
+            "audio/wav": ".wav",
+            "audio/x-wav": ".wav",
+            "audio/mpeg": ".mp3",
+            "audio/mp3": ".mp3",
+            "audio/mp4": ".m4a",
+            "audio/x-m4a": ".m4a",
+            "audio/aac": ".m4a",
+            "audio/webm": ".webm",
+            "audio/ogg": ".ogg",
+        }
+        clip_suffix = mime_to_suffix.get(clip_type, clip_suffix)
+
+    if clip_suffix not in SUPPORTED_VOICE_FILE_EXTENSIONS:
+        return None
+
+    audio_buffer = io.BytesIO(audio_bytes)
+    audio_buffer.name = f"voice_question{clip_suffix}"
+    return audio_buffer
 
 
 def get_latest_exchange(preferred_history_key=None):
@@ -428,8 +574,32 @@ def get_voice_question_options():
 
 def ensure_recipe_visual(question, answer, source="chat"):
     latest_prefix = get_latest_state_prefix(source)
-    prompt_key = hashlib.sha1(f"{question}\n{answer}".encode("utf-8")).hexdigest()
+    normalized_question = normalize_recipe_cache_query(question)
+    cache_identity = normalized_question or f"{question}\n{answer}"
+    prompt_key = hashlib.sha1(cache_identity.encode("utf-8")).hexdigest()
+    cache_png_path = RECIPE_IMAGE_CACHE_DIR / f"{prompt_key}.png"
+    legacy_b64_path = RECIPE_IMAGE_CACHE_DIR / f"{prompt_key}.b64"
     if st.session_state.get(f"{latest_prefix}_latest_recipe_image_key") == prompt_key:
+        if not st.session_state.get(f"{latest_prefix}_latest_recipe_image_source"):
+            st.session_state[f"{latest_prefix}_latest_recipe_image_source"] = "cache"
+        return
+    RECIPE_IMAGE_CACHE_DIR.mkdir(exist_ok=True)
+    if cache_png_path.exists():
+        st.session_state[f"{latest_prefix}_latest_recipe_image_key"] = prompt_key
+        st.session_state[f"{latest_prefix}_latest_recipe_image_path"] = str(cache_png_path)
+        st.session_state[f"{latest_prefix}_latest_recipe_image_b64"] = ""
+        st.session_state[f"{latest_prefix}_latest_recipe_image_error"] = ""
+        st.session_state[f"{latest_prefix}_latest_recipe_image_source"] = "cache"
+        return
+    if legacy_b64_path.exists():
+        image_b64 = legacy_b64_path.read_text(encoding="utf-8")
+        image_bytes = base64.b64decode(image_b64)
+        cache_png_path.write_bytes(image_bytes)
+        st.session_state[f"{latest_prefix}_latest_recipe_image_key"] = prompt_key
+        st.session_state[f"{latest_prefix}_latest_recipe_image_path"] = str(cache_png_path)
+        st.session_state[f"{latest_prefix}_latest_recipe_image_b64"] = ""
+        st.session_state[f"{latest_prefix}_latest_recipe_image_error"] = ""
+        st.session_state[f"{latest_prefix}_latest_recipe_image_source"] = "cache"
         return
 
     prompt = (
@@ -448,9 +618,13 @@ def ensure_recipe_visual(question, answer, source="chat"):
         output_format="png",
     )
     image_b64 = response.data[0].b64_json
+    image_bytes = base64.b64decode(image_b64)
+    cache_png_path.write_bytes(image_bytes)
     st.session_state[f"{latest_prefix}_latest_recipe_image_key"] = prompt_key
-    st.session_state[f"{latest_prefix}_latest_recipe_image_b64"] = image_b64
+    st.session_state[f"{latest_prefix}_latest_recipe_image_path"] = str(cache_png_path)
+    st.session_state[f"{latest_prefix}_latest_recipe_image_b64"] = ""
     st.session_state[f"{latest_prefix}_latest_recipe_image_error"] = ""
+    st.session_state[f"{latest_prefix}_latest_recipe_image_source"] = "generated"
 
 
 def render_recipe_visuals(question, answer, source="chat", show_heading=True):
@@ -465,11 +639,21 @@ def render_recipe_visuals(question, answer, source="chat", show_heading=True):
         st.session_state[f"{latest_prefix}_latest_recipe_image_error"] = f"Recipe image could not be generated: {exc}"
 
     image_error = st.session_state.get(f"{latest_prefix}_latest_recipe_image_error", "")
+    image_path = st.session_state.get(f"{latest_prefix}_latest_recipe_image_path", "")
     image_b64 = st.session_state.get(f"{latest_prefix}_latest_recipe_image_b64", "")
     if image_error:
         st.warning(image_error)
         return
+    if image_path:
+        image_source = st.session_state.get(f"{latest_prefix}_latest_recipe_image_source", "")
+        if image_source:
+            st.caption(f"Image source: {image_source}")
+        st.image(image_path, use_container_width=True)
+        return
     if image_b64:
+        image_source = st.session_state.get(f"{latest_prefix}_latest_recipe_image_source", "")
+        if image_source:
+            st.caption(f"Image source: {image_source}")
         st.image(base64.b64decode(image_b64), use_container_width=True)
 
 
@@ -1269,22 +1453,30 @@ def render_voice_controls(show_answers=False):
         help="Use the built-in recorder to start and stop your voice question.",
         label_visibility="collapsed",
     )
+    uploaded_voice_clip = st.file_uploader(
+        "Upload a voice recording",
+        type=["wav", "mp3", "mp4", "m4a", "mpeg", "mpga", "webm", "ogg"],
+        key=f"voice_upload_{voice_widget_reset}",
+        help="If recording fails on your phone, upload a voice note here instead.",
+        label_visibility="collapsed",
+    )
+    selected_voice_clip = voice_clip or uploaded_voice_clip
     st.markdown(
         f'<div class="voice-status-pill"><span class="voice-dot"></span><span>{st.session_state.get("voice_status_message", "Ready to record a recipe question.")}</span></div>',
         unsafe_allow_html=True,
     )
-    if voice_clip is not None:
-        clip_hash = hashlib.sha1(voice_clip.getvalue()).hexdigest()
+    if selected_voice_clip is not None:
+        clip_hash = hashlib.sha1(selected_voice_clip.getvalue()).hexdigest()
         if clip_hash != st.session_state.get("last_voice_audio_hash", ""):
             try:
                 st.session_state["voice_status_message"] = "Transcribing your recording..."
-                transcript, transcription_error = transcribe_voice_clip(voice_clip)
+                transcript, transcription_error = transcribe_voice_clip(selected_voice_clip)
                 st.session_state["last_voice_audio_hash"] = clip_hash
                 if transcription_error:
                     st.session_state["voice_last_question"] = ""
                     st.session_state["voice_last_answer"] = ""
-                    st.session_state["voice_last_error"] = VOICE_QUERY_GUIDANCE_MESSAGE
-                    st.session_state["voice_status_message"] = VOICE_QUERY_GUIDANCE_MESSAGE
+                    st.session_state["voice_last_error"] = transcription_error
+                    st.session_state["voice_status_message"] = transcription_error
                 elif transcript:
                     st.session_state["voice_input_value"] = transcript
                     st.session_state["voice_status_message"] = "Generating AI Chef reply..."
@@ -1299,6 +1491,7 @@ def render_voice_controls(show_answers=False):
                         st.session_state["voice_status_message"] = "Question not understood, ask about any Indian vegeterian recipies"
                     elif st.session_state.get("voice_latest_answer"):
                         st.session_state["speak_text_once"] = st.session_state["voice_latest_answer"]
+                        prepare_speech_audio(st.session_state["voice_latest_answer"])
                         st.session_state["voice_last_error"] = ""
                         st.session_state["voice_status_message"] = ""
                     st.rerun()
@@ -1310,8 +1503,8 @@ def render_voice_controls(show_answers=False):
             except Exception as exc:
                 st.session_state["voice_last_question"] = ""
                 st.session_state["voice_last_answer"] = ""
-                st.session_state["voice_last_error"] = VOICE_QUERY_GUIDANCE_MESSAGE
-                st.session_state["voice_status_message"] = VOICE_QUERY_GUIDANCE_MESSAGE
+                st.session_state["voice_last_error"] = f"Voice recording could not be processed: {exc}"
+                st.session_state["voice_status_message"] = "Voice recording could not be processed."
 
     query = st.session_state.get("pending_prompt", "").strip()
 
@@ -1409,7 +1602,9 @@ def play_pending_speech():
         return
 
     try:
-        speak_text(st.session_state["speak_text_once"])
+        audio_b64 = prepare_speech_audio(st.session_state["speak_text_once"])
+        if audio_b64:
+            play_speech_audio(audio_b64)
     except Exception as exc:
         st.session_state["voice_status_message"] = f"Voice playback failed: {exc}"
     finally:
