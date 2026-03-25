@@ -1453,24 +1453,16 @@ def render_voice_controls(show_answers=False):
         help="Use the built-in recorder to start and stop your voice question.",
         label_visibility="collapsed",
     )
-    uploaded_voice_clip = st.file_uploader(
-        "Upload a voice recording",
-        type=["wav", "mp3", "mp4", "m4a", "mpeg", "mpga", "webm", "ogg"],
-        key=f"voice_upload_{voice_widget_reset}",
-        help="If recording fails on your phone, upload a voice note here instead.",
-        label_visibility="collapsed",
-    )
-    selected_voice_clip = voice_clip or uploaded_voice_clip
     st.markdown(
         f'<div class="voice-status-pill"><span class="voice-dot"></span><span>{st.session_state.get("voice_status_message", "Ready to record a recipe question.")}</span></div>',
         unsafe_allow_html=True,
     )
-    if selected_voice_clip is not None:
-        clip_hash = hashlib.sha1(selected_voice_clip.getvalue()).hexdigest()
+    if voice_clip is not None:
+        clip_hash = hashlib.sha1(voice_clip.getvalue()).hexdigest()
         if clip_hash != st.session_state.get("last_voice_audio_hash", ""):
             try:
                 st.session_state["voice_status_message"] = "Transcribing your recording..."
-                transcript, transcription_error = transcribe_voice_clip(selected_voice_clip)
+                transcript, transcription_error = transcribe_voice_clip(voice_clip)
                 st.session_state["last_voice_audio_hash"] = clip_hash
                 if transcription_error:
                     st.session_state["voice_last_question"] = ""
