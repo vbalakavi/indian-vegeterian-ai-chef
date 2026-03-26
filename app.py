@@ -67,6 +67,39 @@ RECIPE_DATA_PATH_CANDIDATES = [
     BASE_DIR / "recipes.json",
     BASE_DIR / "recipies.json",
 ]
+RECIPE_OF_THE_DAY_ROTATION_COUNT = 30
+RECIPE_OF_THE_DAY_FALLBACK_RECIPES = [
+    {"name": "Vegetable Pulao", "ingredients": ["basmati rice", "onion", "carrot", "peas", "beans", "tomato", "whole spices", "ghee"], "steps": ["Wash and soak the rice.", "Saute whole spices and onion in ghee.", "Add tomato and mixed vegetables.", "Mix in rice and water, then cook until fluffy."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Lemon Rice", "ingredients": ["cooked rice", "lemon juice", "mustard seeds", "curry leaves", "green chili", "peanuts", "turmeric"], "steps": ["Heat oil and splutter mustard seeds.", "Add curry leaves, chili, and peanuts.", "Mix in turmeric and cooked rice.", "Finish with lemon juice and salt."], "diet": "vegetarian", "region": "South Indian"},
+    {"name": "Curd Rice", "ingredients": ["cooked rice", "yogurt", "milk", "mustard seeds", "curry leaves", "ginger", "green chili"], "steps": ["Mash the cooked rice lightly.", "Mix with yogurt and a little milk.", "Prepare tempering with mustard, ginger, curry leaves, and chili.", "Combine and chill or serve fresh."], "diet": "vegetarian", "region": "South Indian"},
+    {"name": "Tomato Rice", "ingredients": ["rice", "tomato", "onion", "ginger-garlic paste", "green chili", "whole spices"], "steps": ["Cook or soak the rice.", "Saute onion, chili, and spices.", "Cook tomato into a soft masala.", "Mix in rice and steam briefly."], "diet": "vegetarian", "region": "South Indian"},
+    {"name": "Jeera Rice", "ingredients": ["basmati rice", "cumin seeds", "ghee", "bay leaf", "salt"], "steps": ["Cook rice until just done.", "Heat ghee with cumin and bay leaf.", "Toss in cooked rice and salt.", "Serve hot with curry or dal."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Vegetable Fried Rice", "ingredients": ["cooked rice", "carrot", "beans", "capsicum", "spring onion", "soy sauce", "pepper"], "steps": ["Heat oil in a hot pan.", "Stir-fry chopped vegetables quickly.", "Add rice, sauces, and pepper.", "Toss on high heat and garnish."], "diet": "vegetarian", "region": "Indo-Chinese"},
+    {"name": "Paneer Butter Masala", "ingredients": ["paneer", "tomato", "butter", "cream", "cashew", "spices"], "steps": ["Cook tomato and cashew for the gravy.", "Blend into a smooth puree.", "Simmer with butter and spices.", "Add paneer and finish with cream."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Palak Paneer", "ingredients": ["spinach", "paneer", "onion", "tomato", "green chili", "garam masala"], "steps": ["Blanch spinach and blend it smooth.", "Cook onion-tomato masala.", "Add spinach puree and seasonings.", "Fold in paneer and simmer briefly."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Kadai Paneer", "ingredients": ["paneer", "capsicum", "onion", "tomato", "kadai masala"], "steps": ["Make a spiced tomato-onion masala.", "Add capsicum and onion petals.", "Stir in paneer cubes.", "Cook until coated and fragrant."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Shahi Paneer", "ingredients": ["paneer", "cashew", "onion", "cream", "milk", "whole spices"], "steps": ["Cook onion and cashew for a mild gravy.", "Blend until creamy.", "Simmer with paneer and warm spices.", "Finish with cream."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Chana Masala", "ingredients": ["chickpeas", "onion", "tomato", "ginger-garlic", "chana masala", "coriander"], "steps": ["Cook or drain chickpeas.", "Prepare onion-tomato masala.", "Add chickpeas and spices.", "Simmer and garnish with coriander."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Rajma Masala", "ingredients": ["kidney beans", "onion", "tomato", "ginger-garlic", "rajma masala"], "steps": ["Pressure cook soaked rajma until soft.", "Cook onion and tomato masala.", "Add rajma with cooking liquid.", "Simmer until thick and flavorful."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Dal Tadka", "ingredients": ["toor dal", "onion", "tomato", "garlic", "cumin", "red chili"], "steps": ["Cook dal until soft.", "Mash and season the dal base.", "Prepare garlic-cumin tadka in ghee.", "Pour over the dal and serve hot."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Sambar", "ingredients": ["toor dal", "tamarind", "sambar powder", "drumstick", "carrot", "onion"], "steps": ["Cook dal until soft.", "Boil vegetables with tamarind.", "Add sambar powder and cooked dal.", "Finish with mustard and curry leaf tempering."], "diet": "vegetarian", "region": "South Indian"},
+    {"name": "Rasam", "ingredients": ["tomato", "tamarind", "rasam powder", "garlic", "mustard seeds", "curry leaves"], "steps": ["Prepare tamarind-tomato broth.", "Add rasam powder and simmer gently.", "Do not overboil after seasoning.", "Finish with hot tempering."], "diet": "vegetarian", "region": "South Indian"},
+    {"name": "Aloo Gobi", "ingredients": ["potato", "cauliflower", "onion", "tomato", "turmeric", "garam masala"], "steps": ["Par-cook potato and cauliflower.", "Saute onion and tomato with spices.", "Add vegetables and cook covered.", "Finish dry with coriander."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Bhindi Masala", "ingredients": ["okra", "onion", "tomato", "amchur", "coriander powder", "chili powder"], "steps": ["Dry and slice the okra.", "Saute until the stickiness reduces.", "Add onion-tomato masala and spices.", "Cook until lightly crisp."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Baingan Bharta", "ingredients": ["eggplant", "onion", "tomato", "green chili", "garlic", "coriander"], "steps": ["Roast the eggplant until smoky and soft.", "Peel and mash the flesh.", "Cook with onion, tomato, garlic, and chili.", "Garnish with coriander."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Mixed Vegetable Kurma", "ingredients": ["carrot", "beans", "peas", "potato", "coconut", "fennel", "spices"], "steps": ["Cook mixed vegetables until tender.", "Blend coconut and spices into a paste.", "Simmer the paste with vegetables.", "Serve with chapati or rice."], "diet": "vegetarian", "region": "South Indian"},
+    {"name": "Avial", "ingredients": ["mixed vegetables", "coconut", "green chili", "yogurt", "coconut oil", "curry leaves"], "steps": ["Cook vegetables until just tender.", "Blend coconut with green chili and cumin.", "Mix with vegetables and yogurt.", "Finish with coconut oil and curry leaves."], "diet": "vegetarian", "region": "Kerala"},
+    {"name": "Vegetable Korma", "ingredients": ["mixed vegetables", "onion", "tomato", "cashew", "cream", "whole spices"], "steps": ["Cook onion-tomato-cashew base.", "Blend to a smooth gravy.", "Add cooked vegetables and simmer.", "Finish with cream and garam masala."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Matar Paneer", "ingredients": ["paneer", "peas", "onion", "tomato", "ginger-garlic", "garam masala"], "steps": ["Cook onion and tomato masala.", "Add peas and a little water.", "Stir in paneer cubes.", "Simmer until the gravy thickens."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Malai Kofta", "ingredients": ["paneer", "potato", "cream", "cashew", "tomato", "spices"], "steps": ["Shape koftas with paneer and potato.", "Fry or bake until golden.", "Make a rich tomato-cashew gravy.", "Add koftas just before serving."], "diet": "vegetarian", "region": "North Indian"},
+    {"name": "Masala Dosa", "ingredients": ["rice", "urad dal", "potato", "onion", "mustard seeds", "curry leaves"], "steps": ["Soak and grind the batter.", "Ferment overnight.", "Cook spiced potato filling.", "Spread dosa and fill before serving."], "diet": "vegetarian", "region": "South Indian"},
+    {"name": "Onion Uttapam", "ingredients": ["dosa batter", "onion", "green chili", "coriander", "oil"], "steps": ["Pour thick batter on a hot tawa.", "Top with onion, chili, and coriander.", "Drizzle oil and cook both sides.", "Serve with chutney."], "diet": "vegetarian", "region": "South Indian"},
+    {"name": "Vegetable Upma", "ingredients": ["rava", "onion", "green chili", "carrot", "peas", "mustard seeds"], "steps": ["Roast rava lightly.", "Saute tempering and vegetables.", "Add water and bring to a boil.", "Stir in rava and cook until fluffy."], "diet": "vegetarian", "region": "South Indian"},
+    {"name": "Poha", "ingredients": ["flattened rice", "onion", "mustard seeds", "curry leaves", "peanuts", "turmeric"], "steps": ["Rinse poha and set aside.", "Prepare tempering with onion and peanuts.", "Add turmeric and poha.", "Finish with lemon and coriander."], "diet": "vegetarian", "region": "West Indian"},
+    {"name": "Pav Bhaji", "ingredients": ["potato", "peas", "capsicum", "tomato", "butter", "pav bhaji masala"], "steps": ["Boil and mash the vegetables.", "Cook with tomato, butter, and masala.", "Mash until thick and smooth.", "Serve with toasted pav."], "diet": "vegetarian", "region": "Mumbai"},
+    {"name": "Vegetable Biryani", "ingredients": ["basmati rice", "mixed vegetables", "yogurt", "mint", "fried onion", "whole spices"], "steps": ["Cook a spiced vegetable masala.", "Parboil basmati rice.", "Layer rice and masala with herbs.", "Dum cook until aromatic."], "diet": "vegetarian", "region": "Hyderabadi"},
+    {"name": "Gobi Manchurian", "ingredients": ["cauliflower", "cornflour", "garlic", "soy sauce", "chili sauce", "spring onion"], "steps": ["Coat and fry cauliflower florets.", "Prepare a tangy Indo-Chinese sauce.", "Toss cauliflower in the sauce.", "Garnish with spring onion."], "diet": "vegetarian", "region": "Indo-Chinese"},
+]
 VOICE_LANGUAGES = {
     "English": {"transcribe": "en", "reply_name": "English"},
     "Hindi": {"transcribe": "hi", "reply_name": "Hindi"},
@@ -177,16 +210,24 @@ def get_recipe_data_path():
 
 def load_recipe_of_the_day_options():
     data_path = get_recipe_data_path()
-    if data_path is None:
-        return []
+    data = []
 
-    try:
-        with data_path.open(encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return []
+    if data_path is not None:
+        try:
+            with data_path.open(encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            data = []
 
-    return [recipe for recipe in data if isinstance(recipe, dict) and recipe.get("name")]
+    recipes = [recipe for recipe in data if isinstance(recipe, dict) and recipe.get("name")]
+    seen_names = {recipe.get("name", "").strip().lower() for recipe in recipes}
+    for recipe in RECIPE_OF_THE_DAY_FALLBACK_RECIPES:
+        recipe_name = recipe.get("name", "").strip().lower()
+        if recipe_name and recipe_name not in seen_names:
+            recipes.append(recipe)
+            seen_names.add(recipe_name)
+
+    return recipes[:RECIPE_OF_THE_DAY_ROTATION_COUNT]
 
 
 def format_recipe_of_the_day_answer(recipe):
@@ -214,14 +255,21 @@ def get_random_recipe_of_the_day_answer():
     if not recipes:
         return RECIPE_OF_THE_DAY_ANSWER
 
+    recipe_lookup = {recipe.get("name", ""): recipe for recipe in recipes}
+    recipe_names = [name for name in recipe_lookup if name]
     previous_recipe_name = st.session_state.get("last_recipe_of_the_day_name", "")
-    available_recipes = recipes
-    if previous_recipe_name and len(recipes) > 1:
-        available_recipes = [
-            recipe for recipe in recipes if recipe.get("name") != previous_recipe_name
-        ] or recipes
+    rotation_queue = st.session_state.get("recipe_of_the_day_queue", [])
+    rotation_queue = [name for name in rotation_queue if name in recipe_lookup]
 
-    selected_recipe = random.choice(available_recipes)
+    if not rotation_queue:
+        rotation_queue = recipe_names[:]
+        random.shuffle(rotation_queue)
+        if previous_recipe_name and len(rotation_queue) > 1 and rotation_queue[0] == previous_recipe_name:
+            rotation_queue.append(rotation_queue.pop(0))
+
+    selected_recipe_name = rotation_queue.pop(0)
+    selected_recipe = recipe_lookup[selected_recipe_name]
+    st.session_state["recipe_of_the_day_queue"] = rotation_queue
     st.session_state["last_recipe_of_the_day_name"] = selected_recipe.get("name", "")
     return format_recipe_of_the_day_answer(selected_recipe)
 
